@@ -263,6 +263,16 @@ const GUATE_XITER_CONFIG = {
         url: "https://www.mediafire.com/file/rav82d5a1bkahsv/MSI_5.22_OPTI.rar/file",
         icon: "🟥",
       },
+      {
+        label: "Instalar Requisitos",
+        url: "https://www.mediafire.com/file/2n1qkliw3e3q2w5/Instalar_Requisitos.rar/file",
+        icon: "🛠️",
+      },
+      {
+        label: "BST Cleaner Native",
+        url: "https://www.mediafire.com/file/0v0vd4onbdhjpp2/BSTCleaner_native.exe/file",
+        icon: "🧹",
+      },
     ],
     imagenesConfig: [
       { titulo: "Configuración 1", url: "https://i.postimg.cc/nzyK662q/image-8.png" },
