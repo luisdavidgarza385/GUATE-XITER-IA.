@@ -25,10 +25,14 @@ const GUATE_XITER_CONFIG = {
     ],
     contacto: {
       whatsapp: "+502 3250 9982",
-      whatsappLink: "https://wa.me/50232509982",
+      whatsappLink: "https://api.whatsapp.com/send/?phone=50232509982&text&type=phone_number&app_absent=0",
       horario: "Soporte 24/7 · Developer xDavid",
-      discord: "Discord Server (ver en tienda)",
-      youtube: "YouTube Canal (ver en tienda)",
+      discord: "Discord Guate Xiter",
+      discordLink: "https://discord.com/invite/VkJPrkCfZu",
+      tiktok: "david_gt.17",
+      tiktokLink: "https://www.tiktok.com/@david_gt.17",
+      youtube: "Guate Xiter Cheats",
+      youtubeLink: "https://www.youtube.com/@guate-xiter-cheats",
     },
     pagos: {
       paypalMe: "https://paypal.me/david639935",

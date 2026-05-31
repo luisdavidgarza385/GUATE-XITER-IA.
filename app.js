@@ -219,8 +219,11 @@
     return str
       .replace(/\{tienda\}/g, cfg.empresa.tiendaUrl)
       .replace(/\{paypal\}/g, pay.paypalMe)
-      .replace("{whatsapp}", c.whatsapp)
-      .replace("{horario}", c.horario);
+      .replace(/\{whatsapp\}/g, c.whatsapp)
+      .replace(/\{horario\}/g, c.horario)
+      .replace(/\{discord\}/g, c.discordLink)
+      .replace(/\{tiktok\}/g, c.tiktokLink)
+      .replace(/\{youtube\}/g, c.youtubeLink);
   }
 
   function paypalLink() {
@@ -246,6 +249,33 @@
         label: "📱 WhatsApp Developer xDavid",
         url: t.contacto.whatsappLink,
         icon: "📱",
+      },
+    ];
+  }
+
+  function socialLinks() {
+    const c = cfg.empresa.contacto;
+    return [
+      {
+        label: "📱 WhatsApp xDavid",
+        url: c.whatsappLink,
+        icon: "📱",
+        gold: true,
+      },
+      {
+        label: "🎵 TikTok",
+        url: c.tiktokLink,
+        icon: "🎵",
+      },
+      {
+        label: "🟣 Discord",
+        url: c.discordLink,
+        icon: "🟣",
+      },
+      {
+        label: "▶️ YouTube",
+        url: c.youtubeLink,
+        icon: "▶️",
       },
     ];
   }
@@ -425,6 +455,15 @@
       return { text: textPagos(), links: [paypalLink(), ...storeLinks().slice(1)] };
     }
 
+    if (n.includes("redes") || n.includes("social") || n.includes("tiktok") || n.includes("discord") || n.includes("youtube") || n.includes("whatsapp")) {
+      return {
+        text:
+          "🔗 **Redes sociales y contacto directo de Guate Xiter:**\n\n" +
+          "Aquí tienes los enlaces oficiales para WhatsApp, TikTok, Discord y YouTube.",
+        links: socialLinks(),
+      };
+    }
+
     if (n.includes("vendedor") || n.includes("distribuidor") || n.includes("samu") || n.includes("siki") || n.includes("lalo") || n.includes("sebas")) {
       const nombre = ["samu", "siki", "lalo", "sebas"].find((x) => n.includes(x));
       return textVendedores(nombre);
@@ -463,6 +502,10 @@
         text: `Aquí va el siguiente Free Fire:`,
         links: [{ label: item.label, url: item.url, icon: item.icon }],
       };
+    }
+
+    if (n.includes("busca") || n.includes("buscas") || n.includes("buscar") || n.includes("de que es") || n.includes("que es") || n.includes("de que va")) {
+      return { text: respuestaInformacion(text), links: socialLinks() };
     }
 
     if (wantsLinks(n) || n.includes("todo")) {
@@ -574,17 +617,17 @@
 
   function esSolicitudInformacion(text) {
     const n = normalize(text);
-    return /\b(info|información|informacion|qué es|que es|quién|quien|cómo|como|por qué|porque|dame|explícame|explica|definición|definicion|significa|significa)\b/.test(n);
+    return /\b(info|inf|información|informacion|qué es|que es|quién|quien|cómo|como|por qué|porque|dame|explícame|explica|definición|definicion|significa|significa|busca|buscas|buscar|cualquier cosa|de que es|de que va)\b/.test(n);
   }
 
   function respuestaInformacion(tema) {
     tema = tema.trim() || "este tema";
     return (
       `**Información clara sobre ${tema}:**\n\n` +
-      `• **Qué es:** explicación directa y fácil de entender.\n` +
-      `• **Para qué sirve:** uso o aplicación práctica.\n` +
-      `• **Ejemplo:** un caso sencillo o real.\n` +
-      `• **Consejo:** repasa con una pregunta clave o crea una ficha rápida.`
+      `• **Qué es:** ${tema} es un concepto que se puede entender con ejemplos claros.\n` +
+      `• **Para qué sirve:** sirve para comprender mejor el tema y aplicarlo en situaciones prácticas.\n` +
+      `• **Ejemplo:** imagina un caso sencillo usando ${tema}.\n` +
+      `• **Consejo:** repasa con una pregunta clave o crea una ficha rápida para recordar.`
     );
   }
 
@@ -782,6 +825,7 @@
     "PayPal xDavid",
     "Vendedores",
     "Tienda oficial",
+    "Redes sociales",
     "Dame todos los links",
     "Contacto",
   ], sendEmpresa);
