@@ -5,6 +5,7 @@
   "description": "Guate Xiter IA — Bot web xDavid",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "vercel-build": "npm run build",
     "dev": "node server.js",
     "start": "node server.js"
   },
