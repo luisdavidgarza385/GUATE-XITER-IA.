@@ -714,6 +714,7 @@ REGLAS:
         "👨‍💻 **Developer:** " + dev + "\n" +
         "⭐ **Premium:** " + (premium.precio || "$5 USD") + "/mes (cartel informativo)\n\n" +
         "• 🎨 **Imágenes ilimitadas** — cualquier tema y tamaño (ej. `1920x1080`)\n" +
+        "• 💬 **Mensajes infinitos** — chats ilimitados sin restricciones\n" +
         "• 📐 **Todas las matemáticas** — paso a paso\n" +
         "• 📱 Redes · 📚 Estudios · 💼 Negocios\n" +
         "• 📞 WhatsApp: **" + (wa.numero || "+502 3250 9982") + "**\n\n" +

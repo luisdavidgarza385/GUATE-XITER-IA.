@@ -62,6 +62,7 @@ const GUATE_XITER_CONFIG = {
       "IA premium para móvil y PC. Imágenes ilimitadas, todas las matemáticas, redes, estudios y negocios. Sin registro.",
     capacidades: [
       "🎨 Imágenes ilimitadas",
+      "💬 Mensajes ilimitados",
       "📐 Matemáticas completas",
       "📱 Redes sociales",
       "📚 Estudios y tareas",
