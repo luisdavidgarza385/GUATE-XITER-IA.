@@ -2,889 +2,724 @@
   "use strict";
 
   try {
-  runApp();
+    runApp();
   } catch (err) {
     const box = document.getElementById("boot-error");
     if (box) {
       box.hidden = false;
-      box.innerHTML =
-        "<h2>Error al cargar Guate Xiter IA</h2>" +
-        "<p>" + String(err.message) + "</p>" +
-        "<p>Prueba: doble clic en <strong>INICIAR.bat</strong> o ejecuta <code>npm start</code></p>";
+      box.innerHTML = "<h2>Error al cargar Tutor GX</h2><p>" + String(err.message) + "</p>";
     }
     console.error(err);
   }
 
   function runApp() {
-  const cfg = GUATE_XITER_CONFIG;
-  let ffIndex = 0;
+    const cfg = GUATE_XITER_CONFIG;
+    let attachedFiles = [];
+    let workingModel = null; // Se descubre al primer uso
 
-  // --- Tabs ---
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const panelId = tab.dataset.panel;
-      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-      document.querySelectorAll(".panel").forEach((p) => {
-        p.classList.remove("active");
-        p.hidden = true;
+    window.downloadImage = async function (url, filename) {
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename || "imagen.png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch (e) {
+        window.open(url, "_blank");
+      }
+    };
+
+    // --- Firebase: contador en vivo + estadísticas (sin login) ---
+    let db = null;
+    let myPresenceRef = null;
+
+    function getVisitorId() {
+      let id = localStorage.getItem("gx_visitor_id");
+      if (!id) {
+        id = "v_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        localStorage.setItem("gx_visitor_id", id);
+      }
+      return id;
+    }
+
+    function focusChatInput() {
+      const chatInput = document.getElementById("input-estudios");
+      if (!chatInput) return;
+      chatInput.disabled = false;
+      chatInput.removeAttribute("readonly");
+      requestAnimationFrame(() => chatInput.focus());
+    }
+
+    function initFirebase() {
+      if (typeof firebase === "undefined") return;
+      try {
+        firebase.initializeApp(cfg.firebase);
+        db = firebase.database();
+        console.log("[Guate Xiter IA] Firebase conectado.");
+      } catch (e) {
+        console.error("[Guate Xiter IA] Firebase:", e);
+        return;
+      }
+
+      const visitorId = getVisitorId();
+      const connectedRef = db.ref(".info/connected");
+      connectedRef.on("value", (snap) => {
+        if (snap.val() !== true) return;
+        if (myPresenceRef) myPresenceRef.remove();
+        myPresenceRef = db.ref("presence").push();
+        myPresenceRef.onDisconnect().remove();
+        myPresenceRef.set({
+          visitor: visitorId,
+          last_active: firebase.database.ServerValue.TIMESTAMP
+        });
       });
-      tab.classList.add("active");
-      const panel = document.getElementById("panel-" + panelId);
-      panel.classList.add("active");
-      panel.hidden = false;
-    });
-  });
 
-  // --- Sidebar + big cards (enlaces siempre visibles) ---
-  function renderAllDownloadCards() {
-    const sidebar = document.getElementById("sidebar-links");
-    const ffCards = document.getElementById("ff-cards");
-    const emuCards = document.getElementById("emu-cards");
+      // Contador de personas en línea dedupicado por visitante
+      db.ref("presence").on("value", (snap) => {
+        const val = snap.val() || {};
+        const uniqueVisitors = new Set();
+        Object.values(val).forEach((p) => {
+          if (p && p.visitor) uniqueVisitors.add(p.visitor);
+        });
+        const count = uniqueVisitors.size || 0;
+        const badge = document.getElementById("online-viewers-count");
+        if (badge) badge.textContent = count;
+      });
 
-    const allLinks = [
-      ...cfg.descargas.freeFire.map((f) => ({ ...f, type: "ff" })),
-      ...cfg.descargas.emuladores.map((e) => ({ ...e, type: "emu", icon: e.icon })),
-    ];
+      // Contador de visitas únicas (solo incrementa una vez por dispositivo)
+      const hasVisited = localStorage.getItem("gx_has_visited");
+      if (!hasVisited) {
+        db.ref("stats/total_visitors").transaction((current) => (current || 0) + 1);
+        localStorage.setItem("gx_has_visited", "true");
+      }
 
-    allLinks.forEach((item) => {
-      const a = createBigLinkCard(item.label, item.url, item.icon, item.type === "emu");
-      sidebar.appendChild(createSidebarLink(item.label, item.url, item.icon));
-      if (item.type === "ff") ffCards.appendChild(a);
-      else emuCards.appendChild(a.cloneNode(true));
-    });
-  }
+      db.ref("stats/total_visitors").on("value", (snap) => {
+        const count = snap.val() || 0;
+        const badge = document.getElementById("total-visitors-count");
+        if (badge) badge.textContent = count;
+      });
 
-  function createSidebarLink(label, url, icon) {
-    const a = document.createElement("a");
-    a.className = "sidebar-link";
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.innerHTML = `<span class="ico">${icon}</span><span>${label}</span><span class="arrow">↗</span>`;
-    return a;
-  }
+      db.ref("stats/total_usages").on("value", (snap) => {
+        const count = snap.val() || 0;
+        const badge = document.getElementById("total-usages-count");
+        if (badge) badge.textContent = count;
+      });
+    }
 
-  function createBigLinkCard(label, url, icon, isEmu) {
-    const a = document.createElement("a");
-    a.className = "big-link-card" + (isEmu ? " emu" : "");
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.innerHTML = `<span class="bl-icon">${icon}</span><span class="bl-label">${label}</span><span class="bl-go">DESCARGAR ↗</span>`;
-    return a;
-  }
+    function incrementUsageStats() {
+      if (db) {
+        db.ref("stats/total_usages").transaction((current) => (current || 0) + 1);
+      }
+    }
 
-  renderAllDownloadCards();
+    localStorage.removeItem("tutor_gx_user");
+    initFirebase();
+    initWelcomeSplash();
+    initMobileSheet();
 
-  // --- Empresa sidebar text ---
-  document.getElementById("empresa-desc").textContent = cfg.empresa.descripcion;
-  const servList = document.getElementById("empresa-servicios");
-  cfg.empresa.servicios.forEach((s) => {
-    const li = document.createElement("li");
-    li.textContent = s;
-    servList.appendChild(li);
-  });
+    function initWelcomeSplash() {
+      const splash = document.getElementById("welcome-splash");
+      if (!splash) return;
+      const hide = () => {
+        splash.classList.add("welcome-splash--hide");
+        setTimeout(() => {
+          splash.hidden = true;
+          splash.setAttribute("aria-hidden", "true");
+          focusChatInput();
+        }, 600);
+      };
+      setTimeout(hide, 2600);
+      splash.addEventListener("click", hide, { once: true });
+    }
 
-  document.getElementById("estudios-intro").textContent = cfg.estudios.intro;
-  const matList = document.getElementById("estudios-materias");
-  if (matList && cfg.estudios.materias) {
-    cfg.estudios.materias.forEach((m) => {
-      const li = document.createElement("li");
-      li.textContent = m;
-      matList.appendChild(li);
-    });
-  }
-  const tipsList = document.getElementById("estudios-tips");
-  cfg.estudios.tips.forEach((t) => {
-    const li = document.createElement("li");
-    li.textContent = t;
-    tipsList.appendChild(li);
-  });
+    function initMobileSheet() {
+      const sheet = document.getElementById("mobile-sheet");
+      const openBtn = document.getElementById("btn-mobile-info");
+      const closeBtn = document.getElementById("mobile-sheet-close");
+      const backdrop = document.getElementById("mobile-sheet-backdrop");
+      if (!sheet) return;
+      const open = () => { sheet.hidden = false; document.body.classList.add("sheet-open"); };
+      const close = () => { sheet.hidden = true; document.body.classList.remove("sheet-open"); };
+      if (openBtn) openBtn.addEventListener("click", open);
+      if (closeBtn) closeBtn.addEventListener("click", close);
+      if (backdrop) backdrop.addEventListener("click", close);
+    }
 
-  // --- FF rotator ---
-  function updateFfDisplay() {
-    const list = cfg.descargas.freeFire;
-    const item = list[ffIndex];
-    document.getElementById("ff-icon").textContent = item.icon;
-    document.getElementById("ff-label").textContent = item.label;
-    document.getElementById("ff-counter").textContent = `${ffIndex + 1} / ${list.length}`;
-    const btn = document.getElementById("btn-ff-download");
-    btn.href = item.url;
-  }
+    // --- Poblar sidebar ---
+    const introEl = document.getElementById("estudios-intro");
+    if (introEl) introEl.textContent = cfg.asistente.intro;
 
-  function nextFf() {
-    ffIndex = (ffIndex + 1) % cfg.descargas.freeFire.length;
-    updateFfDisplay();
-    return cfg.descargas.freeFire[ffIndex];
-  }
+    const matList = document.getElementById("estudios-materias");
+    if (matList && cfg.asistente.capacidades) {
+      cfg.asistente.capacidades.forEach((m) => {
+        const li = document.createElement("li");
+        li.textContent = m;
+        matList.appendChild(li);
+      });
+    }
 
-  document.getElementById("btn-ff-rotate").addEventListener("click", () => {
-    const item = nextFf();
-    appendMessage("chat-descargas", "bot", {
-      text: `↻ Cambiado a **${item.label}**`,
-      links: [{ label: item.label, url: item.url, icon: item.icon }],
-    });
-  });
+    const nombreEl = document.getElementById("asistente-nombre");
+    if (nombreEl) nombreEl.textContent = cfg.asistente.nombre;
 
-  updateFfDisplay();
+    // --- Lightbox ---
+    const lightbox = document.getElementById("lightbox");
+    const lightboxImg = document.getElementById("lightbox-img");
+    const lightboxCaption = document.getElementById("lightbox-caption");
 
-  // --- Gallery ---
-  const gallery = document.getElementById("config-gallery");
-  const lightbox = document.getElementById("lightbox");
-  const lightboxImg = document.getElementById("lightbox-img");
-  const lightboxCaption = document.getElementById("lightbox-caption");
+    function closeLightbox() {
+      if (!lightbox) return;
+      if (lightbox.open) lightbox.close();
+      if (lightboxImg) {
+        lightboxImg.removeAttribute("src");
+        lightboxImg.hidden = true;
+      }
+      if (lightboxCaption) {
+        lightboxCaption.textContent = "";
+        lightboxCaption.hidden = true;
+      }
+    }
 
-  cfg.descargas.imagenesConfig.forEach((img) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    const el = document.createElement("img");
-    el.src = img.url;
-    el.alt = img.titulo;
-    el.loading = "lazy";
-    btn.appendChild(el);
-    btn.addEventListener("click", () => {
-      lightboxImg.src = img.url;
-      lightboxCaption.textContent = img.titulo;
+    if (lightbox) {
+      if (lightbox.open) lightbox.close();
+      const closeBtn = lightbox.querySelector(".lightbox-close");
+      if (closeBtn) closeBtn.addEventListener("click", closeLightbox);
+      lightbox.addEventListener("click", (e) => { if (e.target === lightbox) closeLightbox(); });
+      lightbox.addEventListener("close", closeLightbox);
+      closeLightbox();
+    }
+
+    function openLightbox(src, alt) {
+      if (!lightbox || !lightboxImg || !src) return;
+      lightboxImg.src = src;
+      lightboxImg.hidden = false;
+      if (lightboxCaption) {
+        lightboxCaption.textContent = alt || "";
+        lightboxCaption.hidden = !alt;
+      }
       lightbox.showModal();
-    });
-    gallery.appendChild(btn);
-  });
-
-  document.querySelector(".lightbox-close").addEventListener("click", () => lightbox.close());
-  lightbox.addEventListener("click", (e) => {
-    if (e.target === lightbox) lightbox.close();
-  });
-
-  // --- Mensajes con botones de link reales ---
-  function now() {
-    return new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
-  }
-
-  function formatText(text) {
-    return String(text)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-      .replace(/\n/g, "<br>");
-  }
-
-  function buildLinkCards(links) {
-    if (!links || !links.length) return "";
-    let html = '<div class="link-cards">';
-    links.forEach((l) => {
-      let cls = " link-btn";
-      if (l.blue) cls += " blue";
-      if (l.gold) cls += " gold";
-      html += `<a class="${cls.trim()}" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">`;
-      html += `<span class="lb-icon">${l.icon || "⬇"}</span>`;
-      html += `<span class="lb-text">${escapeHtml(l.label)}</span>`;
-      html += `<span class="lb-arrow">↗</span></a>`;
-      html += `<div class="url-copy">${escapeHtml(l.url)}</div>`;
-    });
-    html += '<p class="copy-hint">↑ Clic en el botón naranja/azul o copia el link</p></div>';
-    return html;
-  }
-
-  function escapeHtml(s) {
-    const d = document.createElement("div");
-    d.textContent = s;
-    return d.innerHTML;
-  }
-
-  function escapeAttr(s) {
-    return String(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-
-  function appendMessage(containerId, role, content, extraClass = "") {
-    const box = document.getElementById(containerId);
-    const div = document.createElement("div");
-    div.className = `msg ${role} ${extraClass}`.trim();
-
-    const payload = typeof content === "string" ? { text: content, links: [] } : content;
-    let html = formatText(payload.text) + buildLinkCards(payload.links);
-    if (payload.image) {
-      html +=
-        `<div class="study-image-wrap">` +
-        `<img src="${payload.image}" alt="Imagen de estudio" class="study-generated-img" />` +
-        `<a href="${payload.image}" download="tutor-gx-estudio.png" class="study-dl-btn">⬇ Descargar imagen</a>` +
-        `</div>`;
     }
-    div.innerHTML = html + `<span class="time">${now()}</span>`;
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-  }
 
-  function fillTemplate(str) {
-    const c = cfg.empresa.contacto;
-    const pay = cfg.empresa.pagos;
-    return str
-      .replace(/\{tienda\}/g, cfg.empresa.tiendaUrl)
-      .replace(/\{paypal\}/g, pay.paypalMe)
-      .replace(/\{whatsapp\}/g, c.whatsapp)
-      .replace(/\{horario\}/g, c.horario)
-      .replace(/\{discord\}/g, c.discordLink)
-      .replace(/\{tiktok\}/g, c.tiktokLink)
-      .replace(/\{youtube\}/g, c.youtubeLink);
-  }
-
-  function paypalLink() {
-    return {
-      label: "💳 Pagar con PayPal — xDavid",
-      url: cfg.empresa.pagos.paypalMe,
-      icon: "💳",
-      gold: true,
-    };
-  }
-
-  function storeLinks() {
-    const t = cfg.empresa;
-    return [
-      paypalLink(),
-      {
-        label: "🛒 Tienda GUATE XITER PRO",
-        url: t.tiendaUrl,
-        icon: "🛒",
-        gold: true,
-      },
-      {
-        label: "📱 WhatsApp Developer xDavid",
-        url: t.contacto.whatsappLink,
-        icon: "📱",
-      },
-    ];
-  }
-
-  function socialLinks() {
-    const c = cfg.empresa.contacto;
-    return [
-      {
-        label: "📱 WhatsApp xDavid",
-        url: c.whatsappLink,
-        icon: "📱",
-        gold: true,
-      },
-      {
-        label: "🎵 TikTok",
-        url: c.tiktokLink,
-        icon: "🎵",
-      },
-      {
-        label: "🟣 Discord",
-        url: c.discordLink,
-        icon: "🟣",
-      },
-      {
-        label: "▶️ YouTube",
-        url: c.youtubeLink,
-        icon: "▶️",
-      },
-    ];
-  }
-
-  function vendorLinks(vendedores) {
-    return vendedores.map((v) => ({
-      label: `📱 ${v.nombre} — ${v.telefono}`,
-      url: v.whatsappLink,
-      icon: "✅",
-    }));
-  }
-
-  function fmtQ(n) {
-    return `Q${Number(n).toFixed(2)}`;
-  }
-
-  function textPrecios() {
-    const e = cfg.empresa;
-    let t = "💰 **Precios oficiales** — [Tienda Guate Xiter](https://guate-xiter-store.vercel.app/)\n\n";
-
-    if (e.panelTiempo) {
-      t += "**🎮 Panel por tiempo:**\n";
-      e.panelTiempo.forEach((p) => {
-        t += `• **${p.nombre}** — **${fmtQ(p.precio)}**\n`;
-        if (p.desc) t += `  _${p.desc}_\n`;
+    const chatBox = document.getElementById("chat-estudios");
+    if (chatBox) {
+      chatBox.addEventListener("click", (e) => {
+        if (e.target.tagName === "IMG" && (e.target.classList.contains("msg-attachment-img") || e.target.classList.contains("study-generated-img") || e.target.classList.contains("gemini-gen-img"))) {
+          openLightbox(e.target.src, e.target.alt);
+        }
       });
-      t += "\n";
     }
 
-    if (e.bypassTiempo) {
-      t += "**🛡 Bypass VIP:**\n";
-      e.bypassTiempo.forEach((p) => {
-        t += `• **${p.nombre}** — **${fmtQ(p.precio)}**\n`;
+    // --- Carga de archivos ---
+    const fileInput = document.getElementById("file-input");
+    const btnAttach = document.getElementById("btn-attach");
+    const previewsContainer = document.getElementById("attachment-previews");
+    const dropOverlay = document.getElementById("drop-overlay");
+    const messagesArea = dropOverlay ? dropOverlay.parentElement : null;
+
+    if (btnAttach && fileInput) btnAttach.addEventListener("click", () => fileInput.click());
+    if (fileInput) fileInput.addEventListener("change", (e) => { handleFiles(e.target.files); fileInput.value = ""; });
+
+    let dragCounter = 0;
+    if (messagesArea && dropOverlay) {
+      messagesArea.addEventListener("dragenter", (e) => { e.preventDefault(); dragCounter++; dropOverlay.removeAttribute("hidden"); });
+      messagesArea.addEventListener("dragover", (e) => e.preventDefault());
+      messagesArea.addEventListener("dragleave", (e) => { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropOverlay.setAttribute("hidden", ""); } });
+      messagesArea.addEventListener("drop", (e) => { e.preventDefault(); dragCounter = 0; dropOverlay.setAttribute("hidden", ""); if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files); });
+    }
+
+    function handleFiles(filesList) {
+      const imgExts = ["png","jpg","jpeg","gif","webp","bmp","svg","ico","tiff","tif","avif"];
+      Array.from(filesList).forEach((file) => {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const isImage = file.type.startsWith("image/") || imgExts.includes(ext);
+        const isPdf = file.type === "application/pdf" || ext === "pdf";
+        const textExts = ["txt","js","py","html","css","json","csv","md","c","cpp","java","ts","xml","sql","sh","bat","ini","yaml","yml","toml","jsx","tsx","vue","svelte","php","rb","go","rs","swift","kt"];
+        const isText = file.type.startsWith("text/") || textExts.includes(ext);
+
+        if (isImage || isPdf) {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onloadend = () => {
+            const mimeType = file.type || (isPdf ? "application/pdf" : "image/" + (ext === "jpg" ? "jpeg" : ext));
+            attachedFiles.push({ name: file.name, type: isImage ? "image" : "pdf", mimeType: mimeType, base64: reader.result, size: fmtBytes(file.size) });
+            renderPreviews();
+          };
+        } else {
+          const reader = new FileReader();
+          reader.readAsText(file);
+          reader.onload = () => {
+            attachedFiles.push({ name: file.name, type: "text", mimeType: file.type || "text/plain", content: reader.result, size: fmtBytes(file.size) });
+            renderPreviews();
+          };
+        }
       });
-      t += "\n";
     }
 
-    t += `\n💳 PayPal: **${e.pagos.paypalMe}**`;
-    return t;
-  }
+    function renderPreviews() {
+      if (!previewsContainer) return;
+      previewsContainer.innerHTML = "";
+      if (attachedFiles.length === 0) { previewsContainer.setAttribute("hidden", ""); return; }
+      previewsContainer.removeAttribute("hidden");
+      attachedFiles.forEach((file, i) => {
+        const item = document.createElement("div");
+        item.className = "preview-item";
+        const rm = document.createElement("button");
+        rm.type = "button"; rm.className = "btn-remove"; rm.innerHTML = "✕";
+        rm.addEventListener("click", () => { attachedFiles.splice(i, 1); renderPreviews(); });
+        item.appendChild(rm);
+        if (file.type === "image") {
+          const img = document.createElement("img"); img.src = file.base64; img.alt = file.name; item.appendChild(img);
+        } else {
+          const d = document.createElement("div"); d.className = "doc-icon";
+          const fileExt = file.name.split(".").pop().substring(0, 4).toUpperCase();
+          d.innerHTML = (file.type === "pdf" ? "📄" : "💻") + '<span class="doc-ext">' + fileExt + "</span>";
+          item.appendChild(d);
+        }
+        item.title = file.name + " (" + file.size + ")";
+        previewsContainer.appendChild(item);
+      });
+    }
 
-  function textPagos() {
-    const p = cfg.empresa.pagos;
-    let t = `💳 **Método de pago principal — xDavid**\n\n`;
-    t += `🔗 **${p.paypalMe}**\n`;
-    t += `Usuario PayPal.Me: **${p.paypalUsuario}**\n\n`;
-    t += "**También disponible:**\n";
-    p.metodos.slice(1).forEach((m) => {
-      t += `• ${m}\n`;
-    });
-    t += "\n**Pasos:**\n";
-    p.comoFunciona.forEach((c, i) => {
-      t += `${i + 1}. ${c}\n`;
-    });
-    return t;
-  }
+    function fmtBytes(b) {
+      if (!b) return "0 B";
+      const k = 1024, s = ["B", "KB", "MB"];
+      const i = Math.floor(Math.log(b) / Math.log(k));
+      return parseFloat((b / Math.pow(k, i)).toFixed(1)) + " " + s[i];
+    }
 
-  function textVendedores(filtroNombre) {
-    const lista = cfg.empresa.vendedores;
-    const filtrados = filtroNombre
-      ? lista.filter((v) => normalize(v.nombre).includes(normalize(filtroNombre)))
-      : lista;
+    // --- Mensajes ---
+    function now() { return new Date().toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" }); }
+    function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
-    if (filtroNombre && filtrados.length === 0) {
+    function fmtMarkdown(text) {
+      let h = escapeHtml(String(text));
+      h = h.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="code-block"><code>$2</code></pre>');
+      h = h.replace(/```([\s\S]*?)```/g, '<pre class="code-block"><code>$1</code></pre>');
+      h = h.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+      h = h.replace(/\*\*([\s\S]*?)\*\*/g, "<strong>$1</strong>");
+      h = h.replace(/\*([\s\S]*?)\*/g, "<em>$1</em>");
+      h = h.replace(/\n/g, "<br>");
+      return h;
+    }
+
+    function appendMessage(containerId, role, content, extraClass) {
+      const box = document.getElementById(containerId);
+      const div = document.createElement("div");
+      div.className = ("msg " + role + " " + (extraClass || "")).trim();
+      const p = typeof content === "string" ? { text: content, files: [], image: null, genImages: [] } : content;
+      let html = '<div class="msg-text">' + fmtMarkdown(p.text) + "</div>";
+
+      if (p.files && p.files.length) {
+        html += '<div class="msg-attachments">';
+        p.files.forEach((f) => {
+          if (f.type === "image") html += '<img src="' + f.base64 + '" alt="' + escapeHtml(f.name) + '" class="msg-attachment-img" />';
+          else {
+            const ext = f.name.split(".").pop().toUpperCase();
+            html += '<div class="msg-attachment-doc"><span class="doc-icon">' + (f.type === "pdf" ? "📄" : "💻") + '</span><div class="doc-info"><span class="doc-name">' + escapeHtml(f.name) + '</span><span class="doc-size">' + ext + " · " + f.size + "</span></div></div>";
+          }
+        });
+        html += "</div>";
+      }
+
+      if (p.genImages && p.genImages.length) {
+        p.genImages.forEach((src) => {
+          html += '<div class="study-image-wrap"><img src="' + src + '" alt="Imagen generada por IA" class="gemini-gen-img" /><button type="button" onclick="downloadImage(\'' + src + '\', \'tutor-gx-imagen.png\')" class="download-btn">⬇ Descargar imagen</button></div>';
+        });
+      }
+
+      if (p.image) {
+        html += '<div class="study-image-wrap"><img src="' + p.image + '" alt="Esquema generado" class="study-generated-img" /><button type="button" onclick="downloadImage(\'' + p.image + '\', \'tutor-gx-esquema.png\')" class="download-btn">⬇ Descargar esquema</button></div>';
+      }
+
+      div.innerHTML = html + '<span class="time">' + now() + "</span>";
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // --- API Gemini con auto-descubrimiento de modelo ---
+    const GEMINI_ENDPOINTS = ["v1", "v1beta"];
+
+    async function tryGeminiCall(modelName, body) {
+      let lastErr = null;
+      for (const ver of GEMINI_ENDPOINTS) {
+        const url = "https://generativelanguage.googleapis.com/" + ver + "/models/" + modelName + ":generateContent?key=" + cfg.geminiApiKey;
+        try {
+          const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            const msg = (err.error && err.error.message) || "HTTP " + res.status;
+            console.warn("[Tutor GX] " + ver + "/" + modelName + ":", msg);
+            lastErr = new Error(msg);
+            continue;
+          }
+          return await res.json();
+        } catch (fetchErr) {
+          console.warn("[Tutor GX] " + ver + "/" + modelName + " fetch fail:", fetchErr.message);
+          lastErr = fetchErr;
+        }
+      }
+      throw lastErr || new Error("No se pudo conectar con Gemini");
+    }
+
+    async function callGemini(systemPrompt, userParts) {
+      const hasImages = userParts.some(p => p.inlineData);
+      // systemInstruction a veces falla con inlineData en algunos endpoints
+      const body = { contents: [{ parts: userParts }] };
+      if (!hasImages) body.systemInstruction = { parts: [{ text: systemPrompt }] };
+
+      // Si ya tenemos un modelo que funciona y no hay imágenes, usarlo directamente
+      if (workingModel && !hasImages) {
+        return await tryGeminiCall(workingModel, body);
+      }
+
+      // Si hay imágenes, forzar re-descubrimiento
+      if (hasImages) workingModel = null;
+
+      // Probar modelos en orden
+      const models = cfg.modelos || ["gemini-2.0-flash", "gemini-1.5-flash"];
+      let lastError = null;
+      for (const model of models) {
+        try {
+          console.log("[Tutor GX] Probando modelo:", model);
+          const data = await tryGeminiCall(model, body);
+          workingModel = model;
+          console.log("[Tutor GX] ✅ Modelo activo:", model);
+          updateBadge(model);
+          return data;
+        } catch (e) {
+          console.warn("[Tutor GX] ❌ Modelo " + model + " falló:", e.message);
+          lastError = e;
+        }
+      }
+      throw lastError || new Error("Ningún modelo de Gemini disponible");
+    }
+
+    function updateBadge(model) {
+      const badge = document.getElementById("status-badge");
+      if (badge) badge.innerHTML = '<span class="status-dot active"></span> ' + model;
+    }
+
+    function extractTextFromResponse(data) {
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) return "";
+      return data.candidates[0].content.parts.filter(p => p.text).map(p => p.text).join("\n");
+    }
+
+    function extractImagesFromResponse(data) {
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) return [];
+      return data.candidates[0].content.parts.filter(p => p.inlineData).map(p => "data:" + p.inlineData.mimeType + ";base64," + p.inlineData.data);
+    }
+
+    function clampDim(n, max) {
+      const v = parseInt(n, 10) || 1024;
+      return Math.min(max || 2048, Math.max(256, v));
+    }
+
+    function parseImageDimensions(text) {
+      const max = (cfg.imagen && cfg.imagen.maxLado) || 2048;
+      const t = text.toLowerCase();
+      const xy = t.match(/(\d{3,4})\s*[x×]\s*(\d{3,4})/);
+      if (xy) return { width: clampDim(xy[1], max), height: clampDim(xy[2], max) };
+      const w = t.match(/(?:ancho|width)\s*[:=]?\s*(\d{3,4})/i);
+      const h = t.match(/(?:alto|height|largo)\s*[:=]?\s*(\d{3,4})/i);
+      if (w && h) return { width: clampDim(w[1], max), height: clampDim(h[1], max) };
+      if (/vertical|retrato|historia|tiktok|9\s*:\s*16|9:16/.test(t)) return { width: 768, height: 1344 };
+      if (/horizontal|paisaje|banner|16\s*:\s*9|16:9|youtube/.test(t)) return { width: 1344, height: 768 };
+      if (/cuadrado|square|1\s*:\s*1|perfil|logo|icono/.test(t)) return { width: 1024, height: 1024 };
+      if (/1080|full\s*hd|fhd/.test(t)) return { width: 1920, height: 1080 };
+      const defW = (cfg.imagen && cfg.imagen.anchoDefault) || 1024;
+      const defH = (cfg.imagen && cfg.imagen.altoDefault) || 1024;
+      return { width: defW, height: defH };
+    }
+
+    function cleanImagePrompt(text) {
+      return text
+        .replace(/^(genera|generar|crea|crear|haz|hazme|dibuja|dibujar|diseña|pinta|ilustra)\s*(me\s*)?(una?\s*)?(imagen|foto|dibujo|ilustraci[oó]n|logo|poster)?\s*(de|del|sobre|con)?\s*/i, "")
+        .replace(/\d{3,4}\s*[x×]\s*\d{3,4}/gi, "")
+        .replace(/(?:ancho|alto|width|height)\s*[:=]?\s*\d{3,4}/gi, "")
+        .trim() || text.trim();
+    }
+
+    function wantsImage(text) {
+      const n = text.toLowerCase().trim();
+      // Si empieza con verbo de creación, SIEMPRE generar imagen
+      if (/^(genera|generame|crea|creame|haz|hazme|dibuja|dibujame|diseña|pinta|ilustra|saca|hacer|crear|generar)\s/.test(n)) return true;
+      // Contiene verbo de creación + palabra relacionada a imagen cerca
+      if (/(genera|crea|haz|dibuja|saca|hacer|crear|generar).{0,50}(imagen|foto|dibujo|logo|poster|wallpaper|avatar|arte|fondo|paisaje|ilustra)/i.test(n)) return true;
+      // Palabra de imagen + preposición + verbo de creación
+      if (/(imagen|foto|dibujo|logo|poster)\s+(de|del|de la|de los|sobre|con|para)\s+/.test(n) && /(genera|crea|haz|dibuja|quiero|necesito|saca|hacer|crear)/i.test(n)) return true;
+      // Dimensiones + creación
+      if (/\d{3,4}\s*[x×]\s*\d{3,4}/.test(n) && /(genera|crea|dibuja|imagen|foto|logo|poster)/i.test(n)) return true;
+      // Inglés
+      if (/(generate|create|draw|make|design|paint)\s+(an?\s+)?(image|picture|logo|poster|wallpaper|art|illustration)/i.test(n)) return true;
+      return false;
+    }
+
+    async function fetchPollinationsImage(prompt, width, height, attempt) {
+      const seed = Date.now() + (attempt || 0) * 997;
+      const url =
+        "https://image.pollinations.ai/prompt/" +
+        encodeURIComponent(prompt) +
+        "?nologo=true&private=true&enhance=true&model=flux&width=" +
+        width +
+        "&height=" +
+        height +
+        "&seed=" +
+        seed;
+      const res = await fetch(url, { method: "GET" });
+      if (!res.ok) throw new Error("Generador de imagen no disponible (" + res.status + ")");
+      const blob = await res.blob();
+      if (!blob.type.startsWith("image/")) throw new Error("Respuesta inválida del generador");
+      return blob;
+    }
+
+    function blobToDataUrl(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Error al procesar imagen"));
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function generateImage(userMessage) {
+      const dims = parseImageDimensions(userMessage);
+      const cleanPrompt = cleanImagePrompt(userMessage);
+      let finalPrompt = cleanPrompt;
+
+      let activeModel = workingModel;
+      if (!activeModel) {
+        const models = cfg.modelos || ["gemini-2.0-flash", "gemini-1.5-flash"];
+        activeModel = models[0];
+      }
+
+      if (activeModel) {
+        try {
+          const sysTranslate =
+            "Eres un experto en prompts de IA. Convierte este pedido a un prompt corto y descriptivo en inglés para generar una imagen de alta calidad. Responde SOLO el prompt, sin explicación.";
+          const data = await tryGeminiCall(activeModel, {
+            contents: [{ parts: [{ text: cleanPrompt }] }],
+            systemInstruction: { parts: [{ text: sysTranslate }] }
+          });
+          const improved = extractTextFromResponse(data);
+          if (improved && improved.trim().length > 5) finalPrompt = improved.trim();
+        } catch (e) {
+          console.warn("[Guate Xiter IA] Mejora de prompt omitida:", e.message);
+        }
+      }
+
+      const seed = Math.floor(Math.random() * 1000000) + Date.now();
+      const imageUrl =
+        "https://image.pollinations.ai/prompt/" +
+        encodeURIComponent(finalPrompt) +
+        "?nologo=true&private=true&enhance=true&model=flux&width=" +
+        dims.width +
+        "&height=" +
+        dims.height +
+        "&seed=" +
+        seed;
+
       return {
-        text: `No encontré vendedor «${filtroNombre}». Oficiales: SAMU, SIKI, LALO, SEBAS.`,
-        links: vendorLinks(lista),
+        text:
+          "🎨 **Imagen generada** (sin límite de uso)\n\n" +
+          "• Tema: **" + cleanPrompt + "**\n" +
+          "• Tamaño: **" + dims.width + " × " + dims.height + "** px\n\n" +
+          "Puedes pedir otra con otro tamaño, por ejemplo: `genera imagen 1920x1080 de ...`",
+        files: [],
+        genImages: [imageUrl],
+        image: null
       };
     }
 
-    let t = "🔥 **Vendedores autorizados** (números de la tienda web):\n\n";
-    filtrados.forEach((v) => {
-      t += `**${v.nombre}** ✅ ${v.rol}\n`;
-      t += `${v.descripcion}\n`;
-      t += `⭐ ${v.ventas} ventas\n`;
-      t += `📱 **${v.telefono}**\n\n`;
-    });
-    return {
-      text: t + "👇 Clic para abrir WhatsApp de cada vendedor:",
-      links: vendorLinks(filtrados),
-    };
-  }
+    // --- Obtener respuesta ---
+    const dev = cfg.developer || "d3 xDavid";
+    const premium = cfg.premium || { precio: "$5 USD", nota: "cartel informativo" };
+    const wa = cfg.whatsapp || { numero: "+502 3250 9982" };
+    const SYSTEM_PROMPT = `Eres Guate Xiter IA, creado por ${dev}. Respondes TODO sin límites.
+REGLAS:
+- Responde completo, claro y directo a lo que preguntan.
+- Matemáticas: pasos + fórmulas + resultado final.
+- Redes: ideas, captions, hashtags, lo que pidan.
+- Premium (${premium.precio}/mes) y WhatsApp ${wa.numero}: solo si preguntan.
+- Español por defecto, otro idioma si el usuario escribe en él.
+- Ilimitado en todo: imágenes, consultas, tamaño de respuesta.`;
 
-  function normalize(s) {
-    return s
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim();
-  }
+    async function getBotResponse(userMessage, files) {
+      // Preparar partes del mensaje
+      const parts = [];
 
-  function matchFaq(text, faqList) {
-    const n = normalize(text);
-    for (const item of faqList) {
-      if (item.keys.some((k) => n.includes(normalize(k)))) {
-        return fillTemplate(item.respuesta);
+      // Texto del usuario + contenido de archivos de texto
+      let prompt = userMessage;
+      const textFiles = files.filter(f => f.type === "text");
+      if (textFiles.length) {
+        prompt += "\n\n[Archivos adjuntos del usuario:]";
+        textFiles.forEach(tf => { prompt += "\n\n--- " + tf.name + " ---\n```\n" + tf.content + "\n```"; });
+      }
+      parts.push({ text: prompt });
+
+      // Imágenes y PDFs como inlineData
+      const mediaFiles = files.filter(f => f.type === "image" || f.type === "pdf");
+      mediaFiles.forEach(bf => {
+        try {
+          if (!bf.base64) return;
+          const parts2 = bf.base64.split(",");
+          const b64 = parts2.length > 1 ? parts2[1] : bf.base64;
+          parts.push({ inlineData: { mimeType: bf.mimeType || "image/png", data: b64 } });
+        } catch (e) {
+          console.warn("[Tutor GX] Error procesando archivo:", bf.name, e.message);
+        }
+      });
+
+      // Intentar generar imagen si el usuario lo pide (Siempre usando Pollinations, sin límite)
+      if (wantsImage(userMessage)) {
+        try {
+          console.log("[Tutor GX] Generando imagen con Pollinations...");
+          const result = await generateImage(userMessage);
+          if (result && result.genImages && result.genImages.length > 0) {
+            return result;
+          }
+        } catch (imgErr) {
+          console.warn("[Tutor GX] Pollinations falló, canvas fallback:", imgErr.message);
+          if (typeof generarImagenEstudio === "function") {
+            try {
+              const tema = userMessage.replace(/^(genera|crea|haz|dibuja)\s*(me\s*)?(una?\s*)?(imagen|dibujo|foto)\s*(de|del|sobre|de la|de los)?\s*/i, "").trim() || userMessage;
+              const img = generarImagenEstudio(tema, "esquema");
+              return { text: "🎨 **Imagen generada:** " + tema, files: [], genImages: [], image: img };
+            } catch (e3) { /* continue */ }
+          }
+        }
+      }
+
+      // Respuesta de texto (con imágenes si aplica, con fallback a solo texto)
+      try {
+        const data = await callGeminiWithRetry(SYSTEM_PROMPT, parts);
+        const text = extractTextFromResponse(data);
+        const images = extractImagesFromResponse(data);
+        return { text: text || "Listo.", files: [], genImages: images, image: null };
+      } catch (e) {
+        // Si falló y había imágenes, reintentar solo texto
+        if (mediaFiles.length) {
+          const textParts = parts.filter(p => !p.inlineData);
+          if (textParts.length) {
+            try {
+              const data = await callGeminiWithRetry(SYSTEM_PROMPT, textParts);
+              return { text: extractTextFromResponse(data) || "Listo.", files: [], genImages: [], image: null };
+            } catch (e2) { /* fall through */ }
+          }
+        }
+        return { text: "Listo.", files: [], genImages: [], image: null };
       }
     }
-    return null;
-  }
 
-  // --- Helpers de links ---
-  function allFfLinks() {
-    return cfg.descargas.freeFire.map((f) => ({
-      label: f.label,
-      url: f.url,
-      icon: f.icon,
-    }));
-  }
 
-  function allEmuLinks() {
-    return cfg.descargas.emuladores.map((e) => ({
-      label: e.label,
-      url: e.url,
-      icon: e.icon,
-      blue: true,
-    }));
-  }
-
-  function allLinks() {
-    return [...allFfLinks(), ...allEmuLinks()];
-  }
-
-  function wantsLinks(n) {
-    return (
-      n.includes("link") ||
-      n.includes("enlace") ||
-      n.includes("descargar") ||
-      n.includes("descarga") ||
-      n.includes("mediafire") ||
-      n.includes("url") ||
-      n.includes("dame") ||
-      n.includes("pasa") ||
-      n.includes("manda") ||
-      n.includes("todos")
-    );
-  }
-
-  function wantsFf(n) {
-    return (
-      n.includes("free fire") ||
-      n.includes("freefire") ||
-      n === "ff" ||
-      n.includes(" xapk") ||
-      n.includes("xapk") ||
-      (n.includes("ff") && !n.includes("config"))
-    );
-  }
-
-  function wantsEmu(n) {
-    return n.includes("emulador") || n.includes("bluestacks") || n.includes("blue") || n.includes("msi");
-  }
-
-  function replyEmpresa(text) {
-    const n = normalize(text);
-
-    if (
-      n.includes("precio") ||
-      n.includes("precios") ||
-      n.includes("cuanto cuesta") ||
-      n.includes("costo") ||
-      n.includes("plan") ||
-      n.includes("suscripcion") ||
-      n.includes("licencia")
-    ) {
-      return { text: textPrecios(), links: storeLinks() };
-    }
-
-    if (
-      n.includes("pago") ||
-      n.includes("paypal") ||
-      n.includes("saldo") ||
-      n.includes("recargar") ||
-      n.includes("comprar") ||
-      n.includes("tarjeta")
-    ) {
-      return { text: textPagos(), links: [paypalLink(), ...storeLinks().slice(1)] };
-    }
-
-    if (n.includes("redes") || n.includes("social") || n.includes("tiktok") || n.includes("discord") || n.includes("youtube") || n.includes("whatsapp")) {
-      return {
-        text:
-          "🔗 **Redes sociales y contacto directo de Guate Xiter:**\n\n" +
-          "Aquí tienes los enlaces oficiales para WhatsApp, TikTok, Discord y YouTube.",
-        links: socialLinks(),
-      };
-    }
-
-    if (n.includes("vendedor") || n.includes("distribuidor") || n.includes("samu") || n.includes("siki") || n.includes("lalo") || n.includes("sebas")) {
-      const nombre = ["samu", "siki", "lalo", "sebas"].find((x) => n.includes(x));
-      return textVendedores(nombre);
-    }
-
-    if (
-      n.includes("tienda") ||
-      n.includes("pagina web") ||
-      n.includes("sitio") ||
-      n.includes("vercel") ||
-      n.includes("panel pro") ||
-      n.includes("producto") ||
-      n.includes("catalogo")
-    ) {
-      return {
-        text:
-          "🛒 **Tienda oficial GUATE XITER PRO**\n\n" +
-          "Ahí encuentras: productos, planes, PayPal, saldo, vendedores y centro de descargas.\n\n" +
-          "👇 Abre la tienda:",
-        links: storeLinks(),
-      };
-    }
-
-    if (n.includes("bypass") || n.includes("panel") || n.includes("anticheat")) {
-      return {
-        text:
-          textPrecios() +
-          "\n\n🛡 **Bypass + Panel** en la tienda. Emuladores recomendados: BlueStacks 5, LDPlayer, Nox.",
-        links: [...storeLinks(), ...allEmuLinks().slice(0, 1)],
-      };
-    }
-
-    if (n.includes("siguiente") && n.includes("ff")) {
-      const item = nextFf();
-      return {
-        text: `Aquí va el siguiente Free Fire:`,
-        links: [{ label: item.label, url: item.url, icon: item.icon }],
-      };
-    }
-
-    if (n.includes("busca") || n.includes("buscas") || n.includes("buscar") || n.includes("de que es") || n.includes("que es") || n.includes("de que va")) {
-      return { text: respuestaInformacion(text), links: socialLinks() };
-    }
-
-    if (wantsLinks(n) || n.includes("todo")) {
-      return {
-        text: "📥 **Todos tus enlaces MediaFire** — clic en cada botón:",
-        links: allLinks(),
-      };
-    }
-
-    if (n.includes("max") && (wantsFf(n) || n.includes("fire"))) {
-      const x = cfg.descargas.freeFire.find((f) => f.id === "max");
-      return {
-        text: "⚡ **Free Fire Max - New**",
-        links: [{ label: x.label, url: x.url, icon: x.icon }],
-      };
-    }
-
-    if ((n.includes("normal") || n.includes("clasico")) && wantsFf(n)) {
-      const x = cfg.descargas.freeFire.find((f) => f.id === "normal");
-      return {
-        text: "🔥 **Free Fire Normal - New**",
-        links: [{ label: x.label, url: x.url, icon: x.icon }],
-      };
-    }
-
-    if (n.includes("x86") || n.includes("tela")) {
-      const x = cfg.descargas.freeFire.find((f) => f.id === "x86");
-      return {
-        text: "📱 **Free Fire X86 Tela**",
-        links: [{ label: x.label, url: x.url, icon: x.icon }],
-      };
-    }
-
-    if (wantsFf(n)) {
-      return {
-        text: "🔥 **Free Fire** — elige versión (clic para descargar):",
-        links: allFfLinks(),
-      };
-    }
-
-    if (n.includes("bluestacks") || n.includes("blue stack")) {
-      const e = cfg.descargas.emuladores[0];
-      return {
-        text: "🟦 **BlueStacks 5**",
-        links: [{ label: e.label, url: e.url, icon: e.icon, blue: true }],
-      };
-    }
-
-    if (n.includes("msi")) {
-      const e = cfg.descargas.emuladores[1];
-      return {
-        text: "🟥 **MSI App Player**",
-        links: [{ label: e.label, url: e.url, icon: e.icon, blue: true }],
-      };
-    }
-
-    if (wantsEmu(n)) {
-      return {
-        text: "🖥️ **Emuladores** — enlaces directos:",
-        links: allEmuLinks(),
-      };
-    }
-
-    if (n.includes("config") || n.includes("imagen")) {
-      return {
-        text: `⚙️ Ve a la pestaña **Descargas** — hay **${cfg.descargas.imagenesConfig.length}** imágenes de configuración. También están a la derecha en la galería.`,
-        links: [],
-      };
-    }
-
-    const faq = matchFaq(text, cfg.empresa.faq);
-
-    if (faq) {
-      let links = [];
-      if (n.includes("free fire") || (n.includes("ff") && !n.includes("pro")) || n.includes("emulador") || n.includes("descargar")) {
-        links = wantsFf(n) ? allFfLinks() : wantsEmu(n) ? allEmuLinks() : allLinks();
-      } else if (n.includes("pago") || n.includes("paypal")) {
-        links = [paypalLink()];
-      } else if (n.includes("vendedor")) {
-        links = vendorLinks(cfg.empresa.vendedores);
-      } else if (n.includes("contacto") || n.includes("whatsapp") || n.includes("licencia") || n.includes("pro")) {
-        links = storeLinks();
+    async function callGeminiWithRetry(systemPrompt, userParts) {
+      let lastErr = null;
+      for (let i = 0; i < 6; i++) {
+        try {
+          return await callGemini(systemPrompt, userParts);
+        } catch (e) {
+          lastErr = e;
+          const msg = String(e.message || e);
+          if (/high demand|429|rate|quota|overloaded|resource exhausted/i.test(msg) && i < 4) {
+            await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+            workingModel = null;
+            continue;
+          }
+          if (/does not support image input|not supported for this model|does not support/i.test(msg) && i < 5) {
+            workingModel = null;
+            continue;
+          }
+          throw e;
+        }
       }
-      return {
-        text: fillTemplate(faq) + (links.length ? "\n\n👇 **Enlaces:**" : ""),
-        links,
-      };
+      throw lastErr;
     }
 
-    if (n.includes("servicio") || n.includes("que ofrecen")) {
-      return {
-        text:
-          "**Servicios de Guate Xiter:**\n" +
-          cfg.empresa.servicios.map((s) => "• " + s).join("\n") +
-          "\n\n¿Quieres links? Escribe: **dame los links**",
-        links: [],
-      };
+    // --- Typing indicator ---
+    function appendTyping(cid) {
+      const box = document.getElementById(cid);
+      const div = document.createElement("div");
+      const id = "typ-" + Math.random().toString(36).substring(2, 8);
+      div.id = id;
+      div.className = "msg bot typing-indicator-msg";
+      div.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+      return id;
     }
+    function removeTyping(id) { const el = document.getElementById(id); if (el) el.remove(); }
 
-    return {
-      text:
-        `Pregúntame:\n` +
-        `• **precios** · **paypal** · **vendedores**\n` +
-        `• **tienda** · **contacto** · **dame los links**\n` +
-        `• **free fire** · **bluestacks** · **bypass**`,
-      links: storeLinks(),
-    };
-  }
+    // --- Chat principal ---
+    const form = document.getElementById("form-estudios");
+    const input = document.getElementById("input-estudios");
+    const chatId = "chat-estudios";
 
-  function esSolicitudInformacion(text) {
-    const n = normalize(text);
-    return /\b(info|inf|información|informacion|qué es|que es|quién|quien|cómo|como|por qué|porque|dame|explícame|explica|definición|definicion|significa|significa|busca|buscas|buscar|cualquier cosa|de que es|de que va)\b/.test(n);
-  }
-
-  function respuestaInformacion(tema) {
-    tema = tema.trim() || "este tema";
-    return (
-      `**Información clara sobre ${tema}:**\n\n` +
-      `• **Qué es:** ${tema} es un concepto que se puede entender con ejemplos claros.\n` +
-      `• **Para qué sirve:** sirve para comprender mejor el tema y aplicarlo en situaciones prácticas.\n` +
-      `• **Ejemplo:** imagina un caso sencillo usando ${tema}.\n` +
-      `• **Consejo:** repasa con una pregunta clave o crea una ficha rápida para recordar.`
-    );
-  }
-
-  function replyEstudios(text) {
-    const n = normalize(text);
-
-    if (typeof quiereImagen === "function" && quiereImagen(text)) {
-      const tema = extraerTemaImagen(text);
-      const tipo = detectarTipoImagen(text);
-      const img = generarImagenEstudio(tema, tipo);
-      return {
-        text: `🎨 **Imagen de estudio** generada sobre: **${tema}**\nTipo: ${tipo}. Puedes descargarla abajo.`,
-        links: [],
-        image: img,
-      };
-    }
-
-    if (n.includes("hola") || n.includes("ayuda")) {
-      return {
-        text:
-          `¡Hola! Soy **${cfg.estudios.nombreAsistente}** 📚\n` +
-          `Te ayudo con tareas, repaso y **imágenes** de estudio.\n\n` +
-          `Prueba: «genera imagen del sistema solar» o «mapa mental de verbos»`,
-        links: [],
-      };
-    }
-
-    if (esSolicitudInformacion(text)) {
-      const tema = text.replace(/.*(?:sobre|de|del|la|el)\s*/i, "").trim() || text;
-      return { text: respuestaInformacion(tema), links: [] };
-    }
-
-    if (n.startsWith("explicame") || n.startsWith("explica")) {
-      const tema = text.replace(/^explic[aá]me\s*/i, "").trim() || "ese tema";
-      const img = generarImagenEstudio(tema, "esquema");
-      return {
-        text: explicacionEstudio(tema) + "\n\n🎨 También te generé una ficha visual:",
-        links: [],
-        image: img,
-      };
-    }
-
-    if (n.includes("repaso") || n.includes("preguntas")) {
-      const tema = text.replace(/.*(sobre|de)\s*/i, "").trim() || "el tema";
-      return { text: preguntasRepaso(tema), links: [] };
-    }
-
-    if (n.includes("esquema") || n.includes("resumen") || n.includes("tarea")) {
-      const tema = text.replace(/.*(sobre|de|tarea)\s*/i, "").trim() || text;
-      const img = generarImagenEstudio(tema, "esquema");
-      return {
-        text:
-          `**Esquema — ${tema}:**\n` +
-          `1. Título\n2. Introducción\n3. Desarrollo (3 ideas)\n4. Ejemplo\n5. Conclusión\n\n` +
-          `🎨 Imagen lista para imprimir o guardar:`,
-        links: [],
-        image: img,
-      };
-    }
-
-    if (n.includes("matematica") || n.includes("fraccion") || n.includes("algebra")) {
-      const img = generarImagenEstudio(text, "formula");
-      return {
-        text:
-          `**Matemáticas — tips:**\n` +
-          `• Fracciones: mismo denominador → sumas numeradores\n` +
-          `• Ecuaciones: lo que sumas a un lado, restas al otro\n` +
-          `• Practica con 3 ejercicios hoy\n\n` +
-          `🎨 Ficha visual:`,
-        links: [],
-        image: img,
-      };
-    }
-
-    return { text: respuestaInformacion(text), links: [] };
-  }
-
-  function explicacionEstudio(tema) {
-    return (
-      `**${tema}** — explicación simple:\n\n` +
-      `1. **Qué es:** idea central.\n` +
-      `2. **Para qué sirve:** en clase y vida real.\n` +
-      `3. **Ejemplo:** algo de Guatemala.\n` +
-      `4. **Tip:** 3 palabras clave y repasa mañana.`
-    );
-  }
-
-  function preguntasRepaso(tema) {
-    return (
-      `**5 preguntas — ${tema}:**\n` +
-      `1. ¿Definición en una frase?\n` +
-      `2. ¿Idea más importante?\n` +
-      `3. ¿Un ejemplo tuyo?\n` +
-      `4. ¿Error común?\n` +
-      `5. ¿Cómo se lo explicarías a un amigo?`
-    );
-  }
-
-  function replyDescargas(text) {
-    const n = normalize(text);
-    const ff = cfg.descargas.freeFire;
-
-    if (wantsLinks(n) || n.includes("todo")) {
-      return {
-        text: "📥 **Pack completo Guate Xiter:**",
-        links: allLinks(),
-      };
-    }
-
-    if (n.includes("siguiente") || (n.includes("rotar") && n.includes("ff")) || n === "ff") {
-      const item = nextFf();
-      return {
-        text: `↻ **${item.label}**`,
-        links: [{ label: "⬇ " + item.label, url: item.url, icon: item.icon }],
-      };
-    }
-
-    if (n.includes("normal")) {
-      const x = ff.find((f) => f.id === "normal");
-      return { text: "🔥 Normal:", links: [{ label: x.label, url: x.url, icon: x.icon }] };
-    }
-    if (n.includes("max")) {
-      const x = ff.find((f) => f.id === "max");
-      return { text: "⚡ Max:", links: [{ label: x.label, url: x.url, icon: x.icon }] };
-    }
-    if (n.includes("x86") || n.includes("tela")) {
-      const x = ff.find((f) => f.id === "x86");
-      return { text: "📱 X86 Tela:", links: [{ label: x.label, url: x.url, icon: x.icon }] };
-    }
-    if (wantsFf(n)) {
-      return { text: "🔥 **Free Fire** (3 versiones):", links: allFfLinks() };
-    }
-    if (n.includes("bluestacks") || n.includes("blue")) {
-      const e = cfg.descargas.emuladores[0];
-      return { text: "🟦 BlueStacks:", links: [{ label: e.label, url: e.url, icon: e.icon, blue: true }] };
-    }
-    if (n.includes("msi")) {
-      const e = cfg.descargas.emuladores[1];
-      return { text: "🟥 MSI:", links: [{ label: e.label, url: e.url, icon: e.icon, blue: true }] };
-    }
-    if (wantsEmu(n)) {
-      return { text: "🖥️ Emuladores:", links: allEmuLinks() };
-    }
-    if (n.includes("config") || n.includes("imagen")) {
-      return {
-        text: `⚙️ **${cfg.descargas.imagenesConfig.length} imágenes** arriba en la galería — tócalas para ampliar.`,
-        links: [],
-      };
-    }
-
-    return {
-      text: "Escribe: **links** · **ff** · **ff max** · **bluestacks** · **msi** · **config**",
-      links: allLinks(),
-    };
-  }
-
-  function setupChat(formId, inputId, chatId, replier, extraClass = "") {
-    const form = document.getElementById(formId);
-    const input = document.getElementById(inputId);
-
-    function sendMessage(text) {
-      if (!text.trim()) return;
-      appendMessage(chatId, "user", text);
+    async function send(text, filesToSend) {
+      if (!input) return;
+      if (!text.trim() && (!filesToSend || !filesToSend.length)) return;
+      appendMessage(chatId, "user", { text: text, files: filesToSend || [] });
       input.value = "";
-      setTimeout(() => {
-        appendMessage(chatId, "bot", replier(text), extraClass);
-      }, 320);
+      attachedFiles = [];
+      renderPreviews();
+
+      if (!wantsImage(text)) incrementUsageStats();
+
+      const typId = appendTyping(chatId);
+      try {
+        const reply = await getBotResponse(text, filesToSend || []);
+        removeTyping(typId);
+        appendMessage(chatId, "bot", reply);
+      } catch (err) {
+        removeTyping(typId);
+        console.error("[Tutor GX] Error:", err);
+        appendMessage(chatId, "bot", { text: "Listo. Pregunta de nuevo si necesitas algo más.", files: [], genImages: [], image: null });
+      }
     }
 
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      sendMessage(input.value.trim());
+    if (form && input) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const filesToSend = [...attachedFiles];
+        send(input.value.trim(), filesToSend);
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          form.requestSubmit();
+        }
+      });
+    }
+
+    // --- Quick buttons ---
+    const qc = document.getElementById("quick-estudios");
+    if (qc && cfg.asistente.sugerencias) {
+      cfg.asistente.sugerencias.forEach((p) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = p;
+        b.addEventListener("click", () => send(p, []));
+        qc.appendChild(b);
+      });
+    }
+
+    // --- Mensaje de bienvenida ---
+    const welcome = cfg.welcome || {};
+    appendMessage(chatId, "bot", {
+      text:
+        (welcome.titulo || "**Welcome IA Guate Xiter**") + " ✨\n\n" +
+        (welcome.mensaje || "Bienvenido a la IA de la comunidad Guate Xiter.") + "\n\n" +
+        "👨‍💻 **Developer:** " + dev + "\n" +
+        "⭐ **Premium:** " + (premium.precio || "$5 USD") + "/mes (cartel informativo)\n\n" +
+        "• 🎨 **Imágenes ilimitadas** — cualquier tema y tamaño (ej. `1920x1080`)\n" +
+        "• 📐 **Todas las matemáticas** — paso a paso\n" +
+        "• 📱 Redes · 📚 Estudios · 💼 Negocios\n" +
+        "• 📞 WhatsApp: **" + (wa.numero || "+502 3250 9982") + "**\n\n" +
+        "Escribe o toca un botón rápido ✨",
+      files: [], genImages: [], image: null
     });
 
-    return sendMessage;
-  }
-
-  const sendEmpresa = setupChat("form-empresa", "input-empresa", "chat-empresa", replyEmpresa);
-  const sendEstudios = setupChat("form-estudios", "input-estudios", "chat-estudios", replyEstudios, "estudios-bot");
-  const sendDescargas = setupChat("form-descargas", "input-descargas", "chat-descargas", replyDescargas);
-
-  function bindQuick(containerId, phrases, sendFn) {
-    const container = document.getElementById(containerId);
-    phrases.forEach((p) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = p;
-      b.addEventListener("click", () => sendFn(p));
-      container.appendChild(b);
-    });
-  }
-
-  bindQuick("quick-empresa", [
-    "Precios",
-    "PayPal xDavid",
-    "Vendedores",
-    "Tienda oficial",
-    "Redes sociales",
-    "Dame todos los links",
-    "Contacto",
-  ], sendEmpresa);
-
-  bindQuick("quick-estudios", [
-    "Explícame las fracciones",
-    "Genera imagen del ciclo del agua",
-    "Mapa mental de verbos",
-    "Repaso sobre historia de Guatemala",
-  ], sendEstudios);
-
-  bindQuick("quick-descargas", [
-    "Dame todos los links",
-    "Free Fire Max",
-    "BlueStacks",
-    "MSI",
-    "Siguiente ff",
-  ], sendDescargas);
-
-  const tiendaBtn = document.getElementById("btn-tienda-sidebar");
-  if (tiendaBtn) tiendaBtn.href = cfg.empresa.tiendaUrl;
-  const paypalBtn = document.getElementById("btn-paypal-sidebar");
-  if (paypalBtn && cfg.empresa.pagos) paypalBtn.href = cfg.empresa.pagos.paypalMe;
-
-  if (cfg.branding) {
-    const gif = cfg.branding.logoGif;
-    const logoImg = document.getElementById("brand-logo-gif");
-    if (logoImg && gif) logoImg.src = gif;
-    let fav = document.querySelector('link[rel="icon"]');
-    if (!fav) {
-      fav = document.createElement("link");
-      fav.rel = "icon";
-      document.head.appendChild(fav);
-    }
-    if (gif) {
-      fav.href = cfg.branding.favicon || gif;
-      fav.type = "image/gif";
-    }
-  }
-
-  appendMessage("chat-empresa", "bot", {
-    text:
-      `¡Bienvenido a **${cfg.empresa.nombre} IA**! 🇬🇹\n${cfg.empresa.slogan}\n\n` +
-      `Pregunta **precios**, **PayPal**, **vendedores** o pide **links** de descarga.\n` +
-      `Tienda: ${cfg.empresa.tiendaUrl}`,
-    links: [...storeLinks(), ...allFfLinks().slice(0, 1)],
-  });
-
-  appendMessage("chat-estudios", "bot", {
-    text:
-      `Hola, soy **${cfg.estudios.nombreAsistente}** 📚\n` +
-      `Solo temas de **escuela**: explicaciones, repaso e **imágenes**.\n` +
-      `Prueba: «genera imagen de [tema]»`,
-    links: [],
-  }, "estudios-bot");
-
-  appendMessage("chat-descargas", "bot", {
-    text: "Centro de descargas listo. **Clic abajo** o escribe «links»:",
-    links: allFfLinks(),
-  });
   }
 })();

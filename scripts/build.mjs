@@ -29,8 +29,8 @@ fs.copyFileSync(path.join(root, "styles.css"), path.join(dist, "styles.css"));
 
 let html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 html = html.replace(
-  /<script src="config\.js"><\/script>\s*<script src="estudios-art\.js"><\/script>\s*<script src="security\.js"><\/script>\s*<script src="app\.js"><\/script>/,
-  '<script src="app.bundle.js"></script>'
+  /<script src="config\.js(?:\?v=\d+)?"><\/script>\s*<script src="estudios-art\.js(?:\?v=\d+)?"><\/script>\s*<script src="security\.js(?:\?v=\d+)?"><\/script>\s*<script src="app\.js(?:\?v=\d+)?"><\/script>/,
+  '<script src="app.bundle.js?v=' + Date.now() + '"></script>'
 );
 
 fs.writeFileSync(path.join(dist, "index.html"), html);

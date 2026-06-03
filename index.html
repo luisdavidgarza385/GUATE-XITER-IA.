@@ -2,260 +2,189 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Guate Xiter IA — xDavid</title>
-    <link
-      rel="icon"
-      type="image/gif"
-      href="https://file.vahalla.cc/edd21334.gif"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#05040c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Guate Xiter IA</title>
+    <meta name="description" content="Guate Xiter IA — Imágenes ilimitadas, matemáticas, redes. d3 xDavid." />
+    <link rel="icon" type="image/gif" href="https://file.vahalla.cc/edd21334.gif" />
     <link rel="apple-touch-icon" href="https://file.vahalla.cc/edd21334.gif" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <noscript>
-      <p style="padding:2rem;color:#fff;background:#1a1030;text-align:center;font-family:sans-serif">
-        Necesitas JavaScript activado para usar Guate Xiter IA.
-      </p>
+      <p class="noscript-msg">Activa JavaScript para usar Guate Xiter IA.</p>
     </noscript>
-    <div id="boot-error" hidden style="position:fixed;inset:0;z-index:9999;background:#1a1030;color:#ff6b2c;padding:2rem;font-family:sans-serif"></div>
-    <div class="bg-grid" aria-hidden="true"></div>
-    <div class="bg-orbs" aria-hidden="true">
-      <span></span><span></span><span></span>
+
+    <div id="boot-error" hidden></div>
+
+    <!-- Entrada 3D Welcome -->
+    <div id="welcome-splash" class="welcome-splash" aria-hidden="false">
+      <div class="welcome-scene">
+        <div class="welcome-orbit">
+          <div class="welcome-cube">
+            <div class="cube-face front"><img src="https://file.vahalla.cc/edd21334.gif" alt="" width="56" height="56" /></div>
+            <div class="cube-face back"></div>
+            <div class="cube-face right"></div>
+            <div class="cube-face left"></div>
+            <div class="cube-face top"></div>
+            <div class="cube-face bottom"></div>
+          </div>
+        </div>
+        <h1 class="welcome-title">Welcome</h1>
+        <p class="welcome-brand">Guate Xiter IA</p>
+        <p class="welcome-dev">d3 xDavid 🇬🇹</p>
+        <div class="welcome-loader"><span></span><span></span><span></span></div>
+      </div>
     </div>
+
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
 
     <header class="topbar">
       <div class="brand">
         <div class="brand-logo">
-          <img
-            id="brand-logo-gif"
-            class="logo-gif"
-            src="https://file.vahalla.cc/edd21334.gif"
-            alt="Guate Xiter"
-            width="50"
-            height="50"
-          />
+          <img class="logo-gif" src="https://file.vahalla.cc/edd21334.gif" alt="GX" width="40" height="40" />
         </div>
-        <div>
-          <h1>Guate Xiter <span class="accent">IA</span></h1>
-          <p class="sub">Developer · <strong>xDavid</strong> · Guatemala 🇬🇹</p>
+        <div class="brand-text">
+          <h1>Guate <span class="accent">Xiter IA</span></h1>
+          <p class="sub">Welcome · d3 xDavid</p>
         </div>
       </div>
-      <nav class="tabs" role="tablist">
-        <button class="tab active" data-panel="empresa" role="tab">
-          <span class="tab-icon">🏢</span> Empresa
-        </button>
-        <button class="tab" data-panel="estudios" role="tab">
-          <span class="tab-icon">📚</span> Estudios
-        </button>
-        <button class="tab" data-panel="descargas" role="tab">
-          <span class="tab-icon">🎮</span> Descargas
-        </button>
-      </nav>
+      <div class="header-right">
+        <div class="header-stats">
+          <div class="stat-badge stat-live" title="En línea">
+            <span class="stat-dot-live"></span>
+            <strong id="online-viewers-count">0</strong>
+          </div>
+          <div class="stat-badge" title="Visitas únicas">
+            <span class="stat-icon">👁️</span>
+            <strong id="total-visitors-count">0</strong>
+          </div>
+          <div class="stat-badge" title="Mensajes enviados">
+            <span class="stat-icon">✨</span>
+            <strong id="total-usages-count">0</strong>
+          </div>
+        </div>
+        <div class="header-badge" id="status-badge">
+          <span class="status-dot"></span> IA lista
+        </div>
+      </div>
     </header>
 
     <main class="layout">
-      <!-- EMPRESA -->
-      <section id="panel-empresa" class="panel active" role="tabpanel">
-        <aside class="sidebar">
-          <div class="info-card">
-            <div class="card-tag">Guate Xiter</div>
-            <h2>Tu empresa, tu bot</h2>
-            <p id="empresa-desc"></p>
-            <ul id="empresa-servicios" class="chip-list"></ul>
+      <section class="panel active" role="main">
+        <aside class="sidebar" id="sidebar">
+          <a class="sidebar-card whatsapp-card" href="https://wa.me/50232509982" target="_blank" rel="noopener">
+            <span class="card-icon">💬</span>
+            <div>
+              <strong>WhatsApp</strong>
+              <span>+502 3250 9982</span>
+            </div>
+            <span class="card-arrow">→</span>
+          </a>
+
+          <div class="sidebar-card premium-banner" role="note">
+            <div class="premium-shine" aria-hidden="true"></div>
+            <span class="premium-tag">⭐ PREMIUM</span>
+            <p class="premium-price"><strong>$5 USD</strong><span>/mes</span></p>
+            <p class="premium-desc">VIP · prioridad · soporte</p>
+          </div>
+
+          <div class="info-card estudios-side">
+            <div class="card-tag purple">Asistente Pro</div>
+            <h2 id="asistente-nombre">Guate Xiter IA</h2>
+            <p id="estudios-intro"></p>
+            <p class="hub-note">Capacidades</p>
+            <ul id="estudios-materias" class="chip-list purple-chips"></ul>
             <div class="dev-badge">
-              <span class="dev-avatar">xD</span>
+              <span class="dev-avatar">d3</span>
               <div>
                 <small>Developer</small>
-                <strong>xDavid</strong>
+                <strong>d3 xDavid</strong>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="chat-wrap chat-premium" id="chat-container-wrap">
+          <div class="chat-header">
+            <div class="bot-avatar-wrap">
+              <div class="bot-avatar tutor">
+                <img src="https://file.vahalla.cc/edd21334.gif" alt="" width="36" height="36" />
+              </div>
+              <span class="avatar-online"></span>
+            </div>
+            <div class="chat-header-text">
+              <span class="chat-title">Guate Xiter IA</span>
+              <span class="chat-status">Imágenes ∞ · Matemáticas · Redes</span>
+            </div>
+            <button type="button" class="btn-mobile-info" id="btn-mobile-info" aria-label="Ver precio y contacto">ℹ️</button>
+          </div>
+
+          <div class="messages-area">
+            <div id="chat-estudios" class="messages" aria-live="polite"></div>
+            <div id="drop-overlay" class="drop-overlay" hidden>
+              <div class="drop-overlay-content">
+                <span class="drop-icon">📥</span>
+                <p>Suelta archivos aquí</p>
               </div>
             </div>
           </div>
 
-          <div class="info-card store-hub">
-            <h3>🛒 Tienda oficial</h3>
-            <a
-              id="btn-tienda-sidebar"
-              class="btn-store"
-              href="https://guate-xiter-store.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              GUATE XITER PRO ↗
-            </a>
-            <a
-              id="btn-paypal-sidebar"
-              class="btn-store btn-paypal"
-              href="https://paypal.me/david639935"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              💳 PayPal xDavid ↗
-            </a>
-            <p class="hub-note">Precios · Vendedores WhatsApp</p>
-          </div>
+          <div id="attachment-previews" class="attachment-previews" hidden></div>
 
-          <div class="info-card links-hub">
-            <h3>📥 Enlaces directos</h3>
-            <p class="hub-note">MediaFire — FF y emuladores</p>
-            <div id="sidebar-links" class="sidebar-link-list"></div>
-          </div>
-        </aside>
-
-        <div class="chat-wrap">
-          <div class="chat-header">
-            <div class="bot-avatar gx">GX</div>
-            <div>
-              <span class="chat-title">Asistente Empresa</span>
-              <span class="chat-status">En línea · responde con links</span>
+          <form id="form-estudios" class="composer-pill-wrap">
+            <input type="file" id="file-input" multiple accept="image/*,application/pdf" hidden />
+            <div class="input-pill-box">
+              <button type="button" id="btn-attach" class="pill-attach-btn" aria-label="Adjuntar">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <input type="text" id="input-estudios" placeholder="Pregunta o: genera imagen 1080x1920 de..." autocomplete="off" enterkeyhint="send" />
             </div>
-          </div>
-          <div id="chat-empresa" class="messages" aria-live="polite"></div>
-          <form id="form-empresa" class="composer">
-            <input
-              type="text"
-              id="input-empresa"
-              placeholder="Ej: dame los links, free fire max, bluestacks..."
-              autocomplete="off"
-            />
-            <button type="submit" class="send-btn" aria-label="Enviar">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            <button type="submit" class="pill-send-btn" aria-label="Enviar">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94l18.04-8.25a.75.75 0 0 0 0-1.39L3.478 2.405z"/></svg>
             </button>
           </form>
-          <div class="quick-btns" id="quick-empresa"></div>
-        </div>
-      </section>
 
-      <!-- ESTUDIOS -->
-      <section id="panel-estudios" class="panel" role="tabpanel" hidden>
-        <aside class="sidebar">
-          <div class="info-card estudios-side">
-            <div class="card-tag purple">Estudios</div>
-            <h2>Tutor GX</h2>
-            <p id="estudios-intro"></p>
-            <p class="hub-note">Materias:</p>
-            <ul id="estudios-materias" class="chip-list purple-chips"></ul>
-            <ul id="estudios-tips" class="tips-list"></ul>
-          </div>
-        </aside>
-
-        <div class="chat-wrap estudios-chat">
-          <div class="chat-header">
-            <div class="bot-avatar tutor">📚</div>
-            <div>
-              <span class="chat-title">Modo Estudios</span>
-              <span class="chat-status">Repaso · tareas · explicaciones</span>
-            </div>
-          </div>
-          <div id="chat-estudios" class="messages" aria-live="polite"></div>
-          <form id="form-estudios" class="composer">
-            <input
-              type="text"
-              id="input-estudios"
-              placeholder="Explícame un tema, hazme repaso, esquema de tarea..."
-              autocomplete="off"
-            />
-            <button type="submit" class="send-btn send-purple" aria-label="Enviar">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
-          </form>
           <div class="quick-btns" id="quick-estudios"></div>
-        </div>
-      </section>
-
-      <!-- DESCARGAS -->
-      <section id="panel-descargas" class="panel downloads-panel" role="tabpanel" hidden>
-        <div class="downloads-hero">
-          <h2>Centro de Descargas</h2>
-          <p>Free Fire · BlueStacks · MSI · Config emulador</p>
-        </div>
-
-        <div class="downloads-grid">
-          <article class="dl-card highlight">
-            <div class="dl-card-head">
-              <span class="dl-badge">MediaFire</span>
-              <h3>🔥 Free Fire</h3>
-            </div>
-            <p class="dl-note">Rota entre las 3 versiones o descarga directo abajo.</p>
-            <div class="ff-rotator">
-              <div class="ff-current" id="ff-current">
-                <span class="ff-icon" id="ff-icon">🔥</span>
-                <div>
-                  <strong id="ff-label">Free Fire Normal - New</strong>
-                  <small id="ff-counter">1 / 3</small>
-                </div>
-              </div>
-              <div class="ff-actions">
-                <button type="button" class="btn btn-rotate" id="btn-ff-rotate">↻ Siguiente FF</button>
-                <a class="btn btn-download" id="btn-ff-download" href="#" target="_blank" rel="noopener noreferrer">
-                  ⬇ Descargar ahora
-                </a>
-              </div>
-            </div>
-            <div id="ff-cards" class="big-link-cards"></div>
-          </article>
-
-          <article class="dl-card">
-            <div class="dl-card-head">
-              <span class="dl-badge blue">Emulador</span>
-              <h3>🖥️ BlueStacks & MSI</h3>
-            </div>
-            <div id="emu-cards" class="big-link-cards"></div>
-          </article>
-
-          <article class="dl-card gallery-card full">
-            <h3>⚙️ Configuración emulador</h3>
-            <p class="dl-note">Toca para ver en grande</p>
-            <div class="gallery" id="config-gallery"></div>
-          </article>
-        </div>
-
-        <div class="chat-wrap downloads-chat">
-          <div class="chat-header">
-            <div class="bot-avatar dl">⬇</div>
-            <div>
-              <span class="chat-title">Chat Descargas</span>
-              <span class="chat-status">Escribe: links, ff max, bluestacks...</span>
-            </div>
-          </div>
-          <div id="chat-descargas" class="messages" aria-live="polite"></div>
-          <form id="form-descargas" class="composer">
-            <input
-              type="text"
-              id="input-descargas"
-              placeholder="links · free fire · bluestacks · msi · config"
-              autocomplete="off"
-            />
-            <button type="submit" class="send-btn send-gold" aria-label="Enviar">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
-          </form>
-          <div class="quick-btns" id="quick-descargas"></div>
         </div>
       </section>
     </main>
 
+    <!-- Panel móvil: precio + WhatsApp -->
+    <div id="mobile-sheet" class="mobile-sheet" hidden>
+      <div class="mobile-sheet-backdrop" id="mobile-sheet-backdrop"></div>
+      <div class="mobile-sheet-panel">
+        <button type="button" class="mobile-sheet-close" id="mobile-sheet-close" aria-label="Cerrar">✕</button>
+        <h3>Contacto & Premium</h3>
+        <a class="sheet-whatsapp" href="https://wa.me/50232509982" target="_blank" rel="noopener">💬 WhatsApp +502 3250 9982</a>
+        <div class="sheet-premium">
+          <span class="premium-tag">⭐ PREMIUM $5/mes</span>
+          <p>Respuestas VIP y soporte directo con d3 xDavid</p>
+        </div>
+      </div>
+    </div>
+
     <footer class="footer">
-      <span>© Guate Xiter IA</span>
-      <span>·</span>
-      <span>Developer xDavid</span>
+      <span>Guate Xiter IA</span><span>·</span><span>d3 xDavid 🇬🇹</span>
     </footer>
 
     <dialog id="lightbox" class="lightbox">
       <button type="button" class="lightbox-close" aria-label="Cerrar">✕</button>
-      <img id="lightbox-img" src="" alt="Configuración emulador" />
-      <p id="lightbox-caption"></p>
+      <img id="lightbox-img" alt="" hidden />
+      <p id="lightbox-caption" hidden></p>
     </dialog>
 
-    <script src="config.js"></script>
-    <script src="estudios-art.js"></script>
-    <script src="security.js"></script>
-    <script src="app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="config.js?v=2"></script>
+    <script src="estudios-art.js?v=2"></script>
+    <script src="security.js?v=2"></script>
+    <script src="app.js?v=2"></script>
   </body>
 </html>
